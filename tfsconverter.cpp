@@ -33,6 +33,7 @@
 #include <string>
 #include <complex>
 #include <valarray>
+#include "bmppart.h"
 
 using namespace std;
 
@@ -210,7 +211,6 @@ class TFTextCoverter
 			delete[] FirstLine;
 			delete[] NextLine;
 			delete[] Label;
-			
 		}
 		bool IsFirstLine(char *St)
 		{
@@ -367,10 +367,83 @@ class TFCounter
 				}
 			}
 		}
+		void ExportTopIDName(FILE *fq, int K)
+		{
+			rep (i, K)
+				fprintf(fq, "%s %s\n", BigCategory[i].y.x.c_str(), BigCategory[i].y.y.c_str());
+		}
+};
+
+class TFDrawer
+{
+	private:
+		static const int EnWide = 10;
+		static const int MaxWordLength = 16;
+		static const int MaxTotalLength = 131072;
+	public:
+		void Draw(const char *OrderName, const char *NeedDrawName, const char *DrawingName)
+		{
+			char *Model = new char[MaxTotalLength];
+			FILE *fp = fopen(OrderName, "r");
+			FILE *fq = fopen(NeedDrawName, "r");
+			fgets(Model, MaxTotalLength, fp);
+			int Len = strlen(Model) - 1; // since it will have a '\n' at the end.
+			vector < vector <double> > Bracket;
+			vector < pair <string, string> > Need;
+			char *ID = new char[MaxWordLength];
+			char *Name = new char[MaxWordLength];
+			while (fscanf(fq, "%s %s", ID, Name) != EOF)
+				Need.pb(mp(ID, Name));
+			Bracket = vector < vector <double> > (Need.size(), vector <double> (Len, 0));
+			int N;
+			fscanf(fp, "%d", &N);
+			rep (i, N)
+			{
+				int S, T, D;
+				double P;
+				fscanf(fp, "%d%d%d%lf%s%s", &S, &T, &D, &P, ID, Name);
+				rep (j, (int) Need.size())
+					if (Need[j].x == ID && Need[j].y == Name)
+					{
+						if (S < Len)
+							Bracket[j][S] += P;
+						if (T < Len)
+							Bracket[j][T] -= P;
+					}
+			}
+			rep (i, (int) Need.size())
+				rep (j, Len)
+					if (j > 0)
+						Bracket[i][j] += Bracket[i][j - 1];
+			mybmp MB;
+			MB.create(Need.size() * EnWide, Len);
+			double MaxColor = 1;
+			rep (i, (int) Need.size())
+				rep (j, Len)
+					checkmax(MaxColor, Bracket[i][j]);
+			rep (i, (int) Need.size())
+				rep (j, Len)
+				{
+					int C = round(Bracket[i][j] / MaxColor * 254);
+					rep (k, EnWide)
+					{
+						MB.a(j, i * EnWide + k, 0) = 255 - C;
+						MB.a(j, i * EnWide + k, 1) = 255 - C;
+						MB.a(j, i * EnWide + k, 2) = 255;
+					}
+				}
+			MB.write(DrawingName);
+			fclose(fp);
+			fclose(fq);
+			delete[] Model;
+			delete[] ID;
+			delete[] Name;
+		}
 };
 
 TFTextCoverter TFTC;
 TFCounter TFC;
+TFDrawer TFD;
 
 int main(int argc, char **argv)
 {
@@ -385,5 +458,9 @@ int main(int argc, char **argv)
 	TFC.ExportCsv(fq);
 	fclose(fp);
 	fclose(fq);
+	fq = fopen("tmp/top10.txt", "w");
+	TFC.ExportTopIDName(fq, 10);
+	fclose(fq);
+	TFD.Draw("tmp/ordered.txt", "tmp/top10.txt", "output/drawing.bmp");
 	return 0;
 }
