@@ -108,6 +108,25 @@ template <class T> inline T sqr(T X)
 #define cmplxd complex <long double>
 #define pi 3.14159265358979323846264338327950288
 
+class TBMPDrawer
+{
+	private:
+		int W, H;
+		char *Img;
+	public:
+		TBMPDrawer()
+		{
+			Img = NULL;
+			W = H = 0;
+		}
+		virtual ~TBMPDrawer()
+		{
+			if (Img)
+				delete[] Img;
+		}
+		
+};
+
 class TFGenePiece
 {
 	private:
@@ -302,6 +321,7 @@ class TFCounter
 		static const int MaxTotalLength = 131072;
 		char Model[MaxTotalLength];
 		map < pair <string, string>, map < pair <string, int>, vector < pair <int, int> > > > Map;
+		map <string, int> Map2;
 		vector < pair < int, pair <string, string> > > BigCategory;
 		vector < vector < pair < int, pair <string, int> > > > MiddleCategory;
 	public:
@@ -309,6 +329,7 @@ class TFCounter
 		{
 			fgets(Model, MaxTotalLength, fp);
 			Map.clear();
+			Map2.clear();
 			int N;
 			fscanf(fp, "%d", &N);
 			rep (i, N)
@@ -322,6 +343,7 @@ class TFCounter
 				for (int k = L; k < R; ++ k)
 					Seq += Model[k];
 				Map[mp(ID, Name)][mp(Seq, D)].pb(mp(L, R));
+				++ Map2[Name];
 				delete[] ID;
 				delete[] Name;
 			}
@@ -372,16 +394,33 @@ class TFCounter
 			rep (i, K)
 				fprintf(fq, "%s %s\n", BigCategory[i].y.x.c_str(), BigCategory[i].y.y.c_str());
 		}
+		void ExportName(FILE *fq)
+		{
+			vector < pair <int, string> > Seq;
+			tr (it, Map2)
+				Seq.pb(mp(- it->y, it->x));
+			sort(Seq.begin(), Seq.end());
+			tr (it, Seq)
+				fprintf(fq, "%s\n", it->y.c_str());
+		}
+		void ExportTopName(FILE *fq, int K)
+		{
+			vector < pair <int, string> > Seq;
+			tr (it, Map2)
+				Seq.pb(mp(- it->y, it->x));
+			sort(Seq.begin(), Seq.end());
+			rep (i, K)
+				fprintf(fq, "%s\n", Seq[i].y.c_str());
+		}
 };
 
 class TFDrawer
 {
 	private:
-		static const int EnWide = 10;
 		static const int MaxWordLength = 16;
 		static const int MaxTotalLength = 131072;
 	public:
-		void Draw(const char *OrderName, const char *NeedDrawName, const char *DrawingName)
+		void DrawWithIDName(const char *OrderName, const char *NeedDrawName, const char *DrawingName, int EnWide = 1)
 		{
 			char *Model = new char[MaxTotalLength];
 			FILE *fp = fopen(OrderName, "r");
@@ -421,15 +460,19 @@ class TFDrawer
 			rep (i, (int) Need.size())
 				rep (j, Len)
 					checkmax(MaxColor, Bracket[i][j]);
+			vector <double> Coef(3, 0);
+			Coef[0] = 0.1/*0.299*/;
+			Coef[1] = 0.1/*0.587*/;
+			Coef[2] = 0.1/*0.114*/;
 			rep (i, (int) Need.size())
 				rep (j, Len)
 				{
-					int C = round(Bracket[i][j] / MaxColor * 254);
+					int C = round(Bracket[i][j] / MaxColor * 200);
 					rep (k, EnWide)
 					{
-						MB.a(j, i * EnWide + k, 0) = 255 - C;
-						MB.a(j, i * EnWide + k, 1) = 255 - C;
-						MB.a(j, i * EnWide + k, 2) = 255;
+						MB.a(Len - j - 1, i * EnWide + k, i % 3) = max(0.0, 208 - Coef[i % 3] / Coef[(i + 1) % 3] * C);
+						MB.a(Len - j - 1, i * EnWide + k, (i + 1) % 3) = 255 - C;
+						MB.a(Len - j - 1, i * EnWide + k, (i + 2) % 3) = max(0.0, 208 - Coef[(i + 2) % 3] / Coef[(i + 1) % 3] * C);
 					}
 				}
 			MB.write(DrawingName);
@@ -437,6 +480,66 @@ class TFDrawer
 			fclose(fq);
 			delete[] Model;
 			delete[] ID;
+			delete[] Name;
+		}
+		void DrawWithName(const char *OrderName, const char *NeedDrawName, const char *DrawingName, int EnWide = 1)
+		{
+			char *Model = new char[MaxTotalLength];
+			FILE *fp = fopen(OrderName, "r");
+			FILE *fq = fopen(NeedDrawName, "r");
+			fgets(Model, MaxTotalLength, fp);
+			int Len = strlen(Model) - 1; // since it will have a '\n' at the end.
+			vector < vector <double> > Bracket;
+			vector <string> Need;
+			char *Name = new char[MaxWordLength];
+			while (fscanf(fq, "%s", Name) != EOF)
+				Need.pb(Name);
+			Bracket = vector < vector <double> > (Need.size(), vector <double> (Len, 0));
+			int N;
+			fscanf(fp, "%d", &N);
+			rep (i, N)
+			{
+				int S, T, D;
+				double P;
+				fscanf(fp, "%d%d%d%lf%*s%s", &S, &T, &D, &P, Name);
+				rep (j, (int) Need.size())
+					if (Need[j] == Name)
+					{
+						if (S < Len)
+							Bracket[j][S] += P;
+						if (T < Len)
+							Bracket[j][T] -= P;
+					}
+			}
+			rep (i, (int) Need.size())
+				rep (j, Len)
+					if (j > 0)
+						Bracket[i][j] += Bracket[i][j - 1];
+			mybmp MB;
+			MB.create(Need.size() * EnWide, Len);
+			double MaxColor = 1;
+			rep (i, (int) Need.size())
+				rep (j, Len)
+					checkmax(MaxColor, Bracket[i][j]);
+			vector <double> Coef(3, 0);
+			Coef[0] = 0.1/*0.299*/;
+			Coef[1] = 0.1/*0.587*/;
+			Coef[2] = 0.1/*0.114*/;
+			rep (i, (int) Need.size())
+				rep (j, Len)
+				{
+					int C = round(Bracket[i][j] / MaxColor * 200);
+					rep (k, EnWide)
+					{
+						MB.a(Len - j - 1, i * EnWide + k, i % 3) = max(0.0, 208 - Coef[i % 3] / Coef[(i + 1) % 3] * C);
+						MB.a(Len - j - 1, i * EnWide + k, (i + 1) % 3) = 255 - C;
+						MB.a(Len - j - 1, i * EnWide + k, (i + 2) % 3) = max(0.0, 208 - Coef[(i + 2) % 3] / Coef[(i + 1) % 3] * C);
+					}
+				}
+			MB.write(DrawingName);
+			fclose(fp);
+			fclose(fq);
+			delete[] Model;
 			delete[] Name;
 		}
 };
@@ -458,9 +561,13 @@ int main(int argc, char **argv)
 	TFC.ExportCsv(fq);
 	fclose(fp);
 	fclose(fq);
-	fq = fopen("tmp/top10.txt", "w");
-	TFC.ExportTopIDName(fq, 10);
+	fq = fopen("tmp/top.txt", "w");
+	TFC.ExportName(fq);
 	fclose(fq);
-	TFD.Draw("tmp/ordered.txt", "tmp/top10.txt", "output/drawing.bmp");
+	TFD.DrawWithName("tmp/ordered.txt", "tmp/top.txt", "output/drawing1.bmp", 10);
+	fq = fopen("tmp/top10.txt", "w");
+	TFC.ExportTopName(fq, 10);
+	fclose(fq);
+	TFD.DrawWithName("tmp/ordered.txt", "tmp/top10.txt", "output/drawing2.bmp", 100);
 	return 0;
 }
