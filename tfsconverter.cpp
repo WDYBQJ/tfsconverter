@@ -526,21 +526,46 @@ class TFDrawer
 			Coef[1] = 0.1/*0.587*/;
 			Coef[2] = 0.1/*0.114*/;
 			rep (i, (int) Need.size())
+			{
+				vector <int> PureCol(3, 0);
+				rep (k, 3)
+					PureCol[k] = rand() % 256;
+				PureCol[rand() % 3] = 255;
 				rep (j, Len)
 				{
-					int C = round(Bracket[i][j] / MaxColor * 200);
+					double p = Bracket[i][j] / MaxColor;
+					vector <int> C = GetRGB(PureCol, - 1.2 * p + 0.2);
 					rep (k, EnWide)
 					{
-						MB.a(Len - j - 1, i * EnWide + k, i % 3) = max(0.0, 208 - Coef[i % 3] / Coef[(i + 1) % 3] * C);
-						MB.a(Len - j - 1, i * EnWide + k, (i + 1) % 3) = 255 - C;
-						MB.a(Len - j - 1, i * EnWide + k, (i + 2) % 3) = max(0.0, 208 - Coef[(i + 2) % 3] / Coef[(i + 1) % 3] * C);
+						MB.a(Len - j - 1, i * EnWide + k, i % 3) = C[0];
+						MB.a(Len - j - 1, i * EnWide + k, (i + 1) % 3) = C[1];
+						MB.a(Len - j - 1, i * EnWide + k, (i + 2) % 3) = C[2];
 					}
 				}
+			}
 			MB.write(DrawingName);
 			fclose(fp);
 			fclose(fq);
 			delete[] Model;
 			delete[] Name;
+		}
+		vector <int> GetRGB(vector <int> X0, double p = 0)
+		{
+			vector <int> res(3, 0);
+			if (p < 0)
+			{
+				res[0] = round((p + 1) * X0[0]);
+				res[1] = round((p + 1) * X0[1]);
+				res[2] = round((p + 1) * X0[2]);
+			}
+			else
+			{
+				res = X0;
+				res[0] += round(p * (255 - X0[0]));
+				res[1] += round(p * (255 - X0[1]));
+				res[2] += round(p * (255 - X0[2]));
+			}
+			return res;
 		}
 };
 
